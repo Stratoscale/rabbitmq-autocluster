@@ -174,7 +174,7 @@ cluster_nodes() ->
 extract_nodes(Data) ->
   Values = [proplists:lookup(<<"Node">>, N) || N <- [N || {struct, N} <- Data]],
   Addresses = [host_sname(Addr) || {_, Addr} <- Values],
-  filter_self([list_to_atom("rabbit@" ++ Addr) || Addr <- Addresses]).
+  filter_self([list_to_atom("rabbit@" ++ Addr ++ ".node.strato") || Addr <- Addresses]).
 
 
 %% @private
