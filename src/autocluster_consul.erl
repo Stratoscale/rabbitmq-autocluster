@@ -64,6 +64,16 @@ shutdown() ->
     {error, Error} -> err("Error unregistering: ~p", [Error])
   end.
 
+robust_join_cluster(Node, 0) ->
+  rabbit_mnesia:join_cluster(Node, disc);
+robust_join_cluster(Node, Count) ->
+  try
+    rabbit_mnesia:join_cluster(Node, disc)
+  catch throw:Reason ->
+    warning("Failed to join cluster (~p retries left):~n    ~p", [Count, Reason]),
+    timer:sleep(5000),
+    robust_join_cluster(Node, Count - 1)
+  end.
 
 %% @private
 %% @spec join_cluster(term()) -> ok
@@ -78,7 +88,7 @@ join_cluster(Nodes) ->
   application:stop(rabbit),
   mnesia:stop(),
   rabbit_mnesia:reset(),
-  rabbit_mnesia:join_cluster(lists:nth(1, Nodes), disc),
+  robust_join_cluster(lists:nth(1, Nodes), 10),
   mnesia:start(),
   rabbit:start(),
   info("Cluster joined"),
