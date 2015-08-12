@@ -101,7 +101,7 @@ join_cluster(Nodes) ->
 %% @end
 %%
 maybe_register() ->
-  Nodes = cluster_nodes(),
+  Nodes = cluster_nodes(10),
   case lists:member(node(), Nodes) of
     true ->
       debug("Node is already registered"),
@@ -160,9 +160,19 @@ cluster_nodes() ->
   case autocluster_consul_client:get(Path, Args) of
     {ok, Nodes} -> extract_nodes(Nodes);
     {error, Error} ->
-      warning("Error fetching nodes from consul: ~p~n", [Error]),
-      []
+      throw({error_fetch_consul, Error})
   end.
+cluster_nodes(0) ->
+  cluster_nodes();
+cluster_nodes(Count) ->
+  try
+    cluster_nodes()
+  catch throw:{error_fetch_consul, Error} ->
+    warning("Error fetching nodes from consul (~p retries left): ~p~n", [Count, Error]),
+    timer:sleep(5000),
+    cluster_nodes(Count - 1)
+  end.
+
 
 
 %% @private
