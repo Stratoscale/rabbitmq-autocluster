@@ -30,7 +30,7 @@ init() ->
   application:ensure_started(inets),
   case maybe_register() of
     ok ->
-      CheckInterval = autocluster_consul_config:service_ttl() * 1000,
+      CheckInterval = autocluster_consul_config:service_ttl() * 1000 div 2,
       send_check_pass(),
       {ok, _} = timer:apply_interval(CheckInterval, ?MODULE, send_check_pass, []);
     error ->
