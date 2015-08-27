@@ -154,8 +154,8 @@ unregister() ->
 %%
 cluster_nodes() ->
   {Path, Args} = case autocluster_consul_config:cluster_name() of
-    undefined -> {[catalog, service, autocluster_consul_config:service()], []};
-    Name -> {[catalog, service, autocluster_consul_config:service()], [{tag, Name}]}
+    undefined -> {[health, service, autocluster_consul_config:service()], [{passing, 1}]};
+    Name -> {[health, service, autocluster_consul_config:service()], [{tag, Name}, {passing, 1}]}
   end,
   case autocluster_consul_client:get(Path, Args) of
     {ok, Nodes} -> extract_nodes(Nodes);
@@ -182,9 +182,9 @@ cluster_nodes(Count) ->
 %% @end
 %%
 extract_nodes(Data) ->
-  Values = [proplists:lookup(<<"Node">>, N) || N <- [N || {struct, N} <- Data]],
-  Addresses = [host_sname(Addr) || {_, Addr} <- Values],
-  filter_self([list_to_atom("rabbit@" ++ Addr ++ ".node.strato") || Addr <- Addresses]).
+  Entries = [proplists:get_value(<<"Node">>, N) || {struct, N} <- Data],
+  Addresses = [proplists:get_value(<<"Node">>, N) || {struct, N} <- Entries],
+  filter_self([list_to_atom("rabbit@" ++ host_sname(Addr) ++ ".node.strato") || Addr <- Addresses]).
 
 
 %% @private
