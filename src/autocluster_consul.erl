@@ -81,10 +81,10 @@ robust_join_cluster(Node, Count) ->
 %% @end
 %%
 join_cluster([]) ->
-  debug("No nodes in existing cluster"),
+  info("No nodes in existing cluster"),
   ok;
 join_cluster(Nodes) ->
-  debug("Joining existing cluster: ~p", [Nodes]),
+  info("Joining existing cluster: ~p", [Nodes]),
   application:stop(rabbit),
   mnesia:stop(),
   rabbit_mnesia:reset(),
@@ -104,7 +104,7 @@ maybe_register() ->
   Nodes = cluster_nodes(10),
   case lists:member(node(), Nodes) of
     true ->
-      debug("Node is already registered"),
+      info("Node is already registered"),
       ok;
     false ->
       case register() of
