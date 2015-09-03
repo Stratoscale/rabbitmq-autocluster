@@ -101,14 +101,15 @@ join_cluster(Nodes) ->
 %% @end
 %%
 maybe_register() ->
-  Nodes = cluster_nodes(10),
-  case lists:member(node(), Nodes) of
+  Services = agent_services(10),
+  case lists:member(autocluster_consul_config:service(), Services) of
     true ->
       info("Node is already registered"),
       ok;
     false ->
       case register() of
         ok ->
+          Nodes = cluster_nodes(10),
           join_cluster(Nodes);
         {error, 400}   ->
           err("Permission denied when registering node with Consul"),
@@ -173,6 +174,32 @@ cluster_nodes(Count) ->
     cluster_nodes(Count - 1)
   end.
 
+%% @private
+%% @spec agent_services() -> list()
+%% @doc Fetch the list of agent services from Consul, returning them as a list of
+%%      atoms.
+%% @end
+%%
+agent_services() ->
+  {Path, Args} = case autocluster_consul_config:cluster_name() of
+    undefined -> {[agent, services], []};
+    Name -> {[agent, services], [{tag, Name}]}
+  end,
+  case autocluster_consul_client:get(Path, Args) of
+    {ok, {struct, Services}} -> [binary_to_list(S) || {S, _} <- Services];
+    {error, Error} ->
+      throw({error_fetch_consul, Error})
+  end.
+agent_services(0) ->
+  agent_services();
+agent_services(Count) ->
+  try
+    agent_services()
+  catch throw:{error_fetch_consul, Error} ->
+    warning("Error fetching services from consul (~p retries left): ~p~n", [Count, Error]),
+    timer:sleep(5000),
+    agent_services(Count - 1)
+  end.
 
 
 %% @private
