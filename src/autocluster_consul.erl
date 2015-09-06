@@ -27,6 +27,7 @@
 %% @end
 %%
 init() ->
+  random:seed(now()),
   application:ensure_started(inets),
   case maybe_register() of
     ok ->
@@ -64,15 +65,16 @@ shutdown() ->
     {error, Error} -> err("Error unregistering: ~p", [Error])
   end.
 
-robust_join_cluster(Node, 0) ->
-  rabbit_mnesia:join_cluster(Node, disc);
-robust_join_cluster(Node, Count) ->
+robust_join_cluster(0) ->
+  Nodes = cluster_nodes(),
+  join_cluster(Nodes);
+robust_join_cluster(Count) ->
   try
-    rabbit_mnesia:join_cluster(Node, disc)
+    robust_join_cluster(0)
   catch throw:Reason ->
     warning("Failed to join cluster (~p retries left):~n    ~p", [Count, Reason]),
     timer:sleep(5000),
-    robust_join_cluster(Node, Count - 1)
+    robust_join_cluster(Count - 1)
   end.
 
 %% @private
@@ -85,10 +87,12 @@ join_cluster([]) ->
   ok;
 join_cluster(Nodes) ->
   info("Joining existing cluster: ~p", [Nodes]),
+  Node = lists:nth(random:uniform(length(Nodes)), Nodes),
+  info("Chosen node to join to: ~p", [Node]),
   application:stop(rabbit),
   mnesia:stop(),
   rabbit_mnesia:reset(),
-  robust_join_cluster(lists:nth(1, Nodes), 10),
+  rabbit_mnesia:join_cluster(Node, disc),
   mnesia:start(),
   rabbit:start(),
   info("Cluster joined"),
@@ -109,8 +113,7 @@ maybe_register() ->
     false ->
       case register() of
         ok ->
-          Nodes = cluster_nodes(10),
-          join_cluster(Nodes);
+          robust_join_cluster(50);
         {error, 400}   ->
           err("Permission denied when registering node with Consul"),
           error;
@@ -163,16 +166,7 @@ cluster_nodes() ->
     {error, Error} ->
       throw({error_fetch_consul, Error})
   end.
-cluster_nodes(0) ->
-  cluster_nodes();
-cluster_nodes(Count) ->
-  try
-    cluster_nodes()
-  catch throw:{error_fetch_consul, Error} ->
-    warning("Error fetching nodes from consul (~p retries left): ~p~n", [Count, Error]),
-    timer:sleep(5000),
-    cluster_nodes(Count - 1)
-  end.
+
 
 %% @private
 %% @spec agent_services() -> list()
