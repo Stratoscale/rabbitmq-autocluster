@@ -8,7 +8,7 @@
 -define(API_VERSION, "v1").
 -define(CONTENT_JSON, "application/json").
 
--export([get/2, post/2]).
+-export([get/2, post/2, putreq/2]).
 
 -export([build_url/2,
          build_full_path/2,
@@ -33,6 +33,22 @@ get(Path, Args) ->
     {ok, {{_, S, _}, _, _}} -> {error, S};
     {error, Reason} -> {error, Reason}
   end.
+
+%% @public
+%% @spec putreq(list(), list()) -> list()
+%% @doc Perform a HTTP PUT request to consul for the specified path and qargs
+%% @end
+%%
+putreq(Path, Args) ->
+  case httpc:request(put, {build_url(Path, Args), [], ?CONTENT_JSON, []}, [], []) of
+    {ok, {{_, 200, _}, _, Body}} ->
+      {ok, _} = rabbit_misc:json_decode(Body);
+    {ok, {{_, S, Error}, _, _}} ->
+      rabbit_log:error("autocluster_client: PUT got bad reponse (~s) ~s~n", [S, Error]),
+      {error, S};
+    {error, Reason} -> {error, Reason}
+  end.
+
 
 %% @public
 %% @spec post(list(), list()) -> list()

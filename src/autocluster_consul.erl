@@ -105,22 +105,20 @@ join_cluster(Nodes) ->
 %% @end
 %%
 maybe_register() ->
-  Services = agent_services(10),
-  case lists:member(autocluster_consul_config:service(), Services) of
-    true ->
-      info("Node is already registered"),
-      ok;
-    false ->
-      case register() of
-        ok ->
-          robust_join_cluster(50);
-        {error, 400}   ->
-          err("Permission denied when registering node with Consul"),
-          error;
-        {error, Error} ->
-          err("Error registering: ~p", [Error]),
-          error
-    end
+  case register() of
+    ok ->
+      case enroll(10) of
+        false ->
+          info("Node is already enrolled"),
+          ok;
+        true -> robust_join_cluster(50)
+      end;
+    {error, 400}   ->
+      err("Permission denied when registering node with Consul"),
+      error;
+    {error, Error} ->
+      err("Error registering: ~p", [Error]),
+      error
   end.
 
 
@@ -168,31 +166,18 @@ cluster_nodes() ->
   end.
 
 
-%% @private
-%% @spec agent_services() -> list()
-%% @doc Fetch the list of agent services from Consul, returning them as a list of
-%%      atoms.
-%% @end
-%%
-agent_services() ->
-  {Path, Args} = case autocluster_consul_config:cluster_name() of
-    undefined -> {[agent, services], []};
-    Name -> {[agent, services], [{tag, Name}]}
-  end,
-  case autocluster_consul_client:get(Path, Args) of
-    {ok, {struct, Services}} -> [binary_to_list(S) || {S, _} <- Services];
-    {error, Error} ->
-      throw({error_fetch_consul, Error})
-  end.
-agent_services(0) ->
-  agent_services();
-agent_services(Count) ->
-  try
-    agent_services()
-  catch throw:{error_fetch_consul, Error} ->
-    warning("Error fetching services from consul (~p retries left): ~p~n", [Count, Error]),
-    timer:sleep(5000),
-    agent_services(Count - 1)
+enroll(0) ->
+  throw(enroll_retries_exceeded);
+enroll(Count) ->
+  Path = lists:concat([['kv'], string:tokens(atom_to_list(node()), "@")]),
+  Args = [{cas, 0}],
+  case autocluster_consul_client:putreq(Path, Args) of
+    {ok, true} -> true;
+    {ok, V} -> false = V;
+    {error, Err} ->
+      warning("Error enroll in consul (~p retries left): ~p~n", [Count, Err]),
+      timer:sleep(5000),
+      enroll(Count - 1)
   end.
 
 
