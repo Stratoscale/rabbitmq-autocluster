@@ -107,11 +107,11 @@ join_cluster(Nodes) ->
 maybe_register() ->
   case register() of
     ok ->
-      case enroll(10) of
+      case enroll(100) of
         false ->
           info("Node is already enrolled"),
           ok;
-        true -> robust_join_cluster(50)
+        true -> robust_join_cluster(100)
       end;
     {error, 400}   ->
       err("Permission denied when registering node with Consul"),
