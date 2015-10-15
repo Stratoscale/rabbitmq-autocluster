@@ -71,7 +71,7 @@ robust_join_cluster(0) ->
 robust_join_cluster(Count) ->
   try
     robust_join_cluster(0)
-  catch throw:Reason ->
+  catch _:Reason ->
     warning("Failed to join cluster (~p retries left):~n    ~p", [Count, Reason]),
     timer:sleep(5000),
     robust_join_cluster(Count - 1)
