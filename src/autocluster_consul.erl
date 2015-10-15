@@ -91,7 +91,11 @@ join_cluster(Nodes) ->
   info("Chosen node to join to: ~p", [Node]),
   application:stop(rabbit),
   mnesia:stop(),
-  rabbit_mnesia:reset(),
+  try
+    rabbit_mnesia:reset()
+  catch _:Reason ->
+    warning("Reset failed, trying to join cluster anyway:~n    ~p", [Reason])
+  end,
   rabbit_mnesia:join_cluster(Node, disc),
   mnesia:start(),
   rabbit:start(),
